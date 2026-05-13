@@ -1,7 +1,7 @@
 
 # Seedbox Installation Script
 ## 用法
-`bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u <用戶名稱> -p <密碼> -c <緩存大小(單位:MiB)> -q <qBittorrent 版本> -l <libtorrent 版本> -b -v -r -3 -x -o`
+`bash <(wget -qO- https://raw.githubusercontent.com/Pain4Din0/Seedbox/main/Install.sh) -u <用戶名稱> -p <密碼> -c <緩存大小(單位:MiB)> -q <qBittorrent 版本> -l <libtorrent 版本> -b -v -r -3 -x -o`
 #### Options
 	1. -u: 用戶名稱
 	2. -p: 密碼
@@ -15,15 +15,22 @@
 	10.-x: 啓動 BBRx
 	11.-o: 自定義端口
 #### 範例
-`bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u jerry048 -p 1LDw39VOgors -c 3072 -q 4.3.9 -l v1.2.19 -v -x`
+`bash <(wget -qO- https://raw.githubusercontent.com/Pain4Din0/Seedbox/main/Install.sh) -u jerry048 -p 1LDw39VOgors -c 4096 -q 5.2.0 -l v2.0.12 -b -v -r`
 
 ##### 解釋
 	1. 用戶名稱 是 jerry048
 	2. 密碼 是 1LDw39VOgors
-	3. 緩存大小 是 3GB
-	4. 安裝 qBittorrent 4.3.9 - libtorrent-v1.2.19
+	3. 緩存大小 是 4 GiB
+	4. 安裝 qBittorrent 5.2.0 - libtorrent-v2.0.12
+	5. 安裝 autobrr
 	6. 安裝 vertex
-	7. 啓動 BBRx
+	7. 安裝 autoremove-torrents
+
+### Debian 13 / ARM64 備注
+- Debian 13 (trixie) ARM64 已加入此安裝器的系統檢查白名單。ARM64 下 qBittorrent 5.2.0 + libtorrent v2.0.12 會從 userdocs 靜態構建 release 安裝。
+- 如果機器已經啓用 `net.ipv4.tcp_congestion_control=bbr` 和 `net.core.default_qdisc=fq`，腳本會跳過 `-x` / `-3` 的 BBR 安裝請求，避免覆蓋現有内核或調優。全新機器上，上游 BBRv3 安裝函數目前仍是禁用狀態，建議在腳本外單獨配置 BBR。
+- 舊範例中的 `-q 4.6.3 -l v2.0.10` 已不在目前上游組件版本列表中，直接使用可能會進入交互式版本選擇。
+- 對於 4C / 24 GiB RAM / 2 Gbps VPS，`-c 4096` 是保守的緩存設定。實際跑種時如果内存壓力很低，可以再提高到 `6144`。
 ## 支持平台
 	1. 系統
 		1. Debian 10+

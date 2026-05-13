@@ -1,10 +1,8 @@
-[中文Readme](https://github.com/jerry048/Dedicated-Seedbox/blob/main/README-zh.md)
-# !! ALERT
-BBR v3 is currently unavailable
+[中文Readme](https://github.com/Pain4Din0/Seedbox/blob/main/README-zh.md)
 
 # Seedbox Installation Script
 ## Usage
-`bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u <username> -p <password> -c <Cache Size(unit:MiB)> -q <qBittorrent Version> -l <libtorrent Version> -b -v -r -3 -x -o`
+`bash <(wget -qO- https://raw.githubusercontent.com/Pain4Din0/Seedbox/main/Install.sh) -u <username> -p <password> -c <Cache Size(unit:MiB)> -q <qBittorrent Version> -l <libtorrent Version> -b -v -r -3 -x -o`
 #### Options
 	1. -u: username 
 	2. -p: password
@@ -16,18 +14,23 @@ BBR v3 is currently unavailable
 	8. -r: Install autoremove-torrents
 	9. -3: Enable BBR V3
 	10.-x: Enable BBRx
-	11. Customize ports
+	11.-o: Customize ports
 #### Example
-`bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u jerry048 -p 1LDw39VOgors -c 3072 -q 4.3.9 -l v1.2.19 -b -r -x`
+`bash <(wget -qO- https://raw.githubusercontent.com/Pain4Din0/Seedbox/main/Install.sh) -u jerry048 -p 1LDw39VOgors -c 4096 -q 5.2.0 -l v2.0.12 -b -r`
 
 ##### Explanation
 	1. username is jerry048
 	2. password is 1LDw39VOgors 
-	3. Cache size is 3GB
-	4. Install qBittorrent 4.3.9 - libtorrent-v1.2.19
+	3. Cache size is 4 GiB
+	4. Install qBittorrent 5.2.0 - libtorrent-v2.0.12
 	5. Install autobrr
 	6. Install autoremove-torrents
-	7. Enable BBRx
+
+### Debian 13 / ARM64 note
+- Debian 13 (trixie) on ARM64 is supported by this wrapper. For ARM64, qBittorrent 5.2.0 with libtorrent v2.0.12 is installed from the userdocs static build release.
+- If the machine already has `net.ipv4.tcp_congestion_control=bbr` and `net.core.default_qdisc=fq`, this script skips `-x` / `-3` BBR installation requests to avoid replacing an existing kernel or tuning. On a fresh machine, the upstream BBRv3 installer is still disabled, so prefer configuring BBR outside this script.
+- Older examples using `-q 4.6.3 -l v2.0.10` are no longer in the upstream component version list and may prompt for another version.
+- For a 4C / 24 GiB RAM / 2 Gbps VPS, `-c 4096` is a conservative cache setting. Increase to `6144` only if memory pressure stays low under your real torrent workload.
 ## Supported Platform
 	1. OS
 		1. Debian 10+

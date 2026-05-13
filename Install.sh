@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 tput sgr0; clear
 
 ## Load Seedbox Components
@@ -32,6 +32,242 @@ else
 	export $4=1
 fi
 BLA::stop_loading_animation
+}
+
+extend_qbittorrent_support_() {
+	if [[ " ${qb_ver_list[*]} " != *" 5.2.0 "* ]]; then
+		qb_ver_list+=("5.2.0")
+		qb_name_list+=("qBittorrent-5.2.0")
+	fi
+	if [[ " ${lib_ver_list[*]} " != *" v2.0.12 "* ]]; then
+		lib_ver_list+=("v2.0.12")
+		lib_name_list+=("libtorrent-v2.0.12")
+	fi
+}
+
+qb_install_check_local_() {
+	if [[ "$qb_ver" == "qBittorrent-5.2.0" && "$lib_ver" != "libtorrent-v2.0.12" ]]; then
+		fail "qBittorrent 5.2.0 is only supported by this script with libtorrent-v2.0.12"
+		return 1
+	fi
+	qb_install_check
+}
+
+install_qBittorrent_userdocs_() {
+	username=$1
+	password=$2
+	qb_ver=$3
+	lib_ver=$4
+	qb_cache=$5
+	qb_port=$6
+	qb_incoming_port=$7
+
+	if [[ "$qb_ver" != "qBittorrent-5.2.0" || "$lib_ver" != "libtorrent-v2.0.12" ]]; then
+		fail "Unsupported userdocs qBittorrent build: $qb_ver - $lib_ver"
+		return 1
+	fi
+
+	if pgrep -i -f qbittorrent >/dev/null; then
+		warn "qBittorrent is running. Stopping it now..."
+		pkill -s "$(pgrep -i -f qbittorrent)"
+	fi
+	if pgrep -i -f qbittorrent >/dev/null; then
+		warn "Failed to stop qBittorrent. Please stop it manually"
+		return 1
+	fi
+
+	if [[ $(uname -m) == "x86_64" ]]; then
+		asset_arch="x86_64"
+		component_arch="x86_64"
+	elif [[ $(uname -m) == "aarch64" ]]; then
+		asset_arch="aarch64"
+		component_arch="ARM64"
+	else
+		warn "Unsupported CPU architecture"
+		return 1
+	fi
+
+	if test -e /usr/bin/qbittorrent-nox; then
+		warn "qBittorrent is already installed. Replacing it now..."
+		rm /usr/bin/qbittorrent-nox
+	fi
+
+	wget "https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-5.2.0_v2.0.12/${asset_arch}-qbittorrent-nox" -O "$HOME/qbittorrent-nox" && chmod +x "$HOME/qbittorrent-nox"
+	if [ $? -ne 0 ]; then
+		warn "Failed to download qBittorrent-nox executable"
+		return 1
+	fi
+	mv "$HOME/qbittorrent-nox" /usr/bin/qbittorrent-nox
+
+	mkdir -p "/home/$username/qbittorrent/Downloads" && chown -R "$username:$username" "/home/$username/qbittorrent/"
+	mkdir -p "/home/$username/.config/qBittorrent" && chown "$username:$username" "/home/$username/.config/qBittorrent"
+
+	if test -e /etc/systemd/system/qbittorrent-nox@.service; then
+		warn "qBittorrent systemd services already exist. Removing it now..."
+		rm /etc/systemd/system/qbittorrent-nox@.service
+	fi
+	cat << EOF >/etc/systemd/system/qbittorrent-nox@.service
+[Unit]
+Description=qBittorrent
+After=network.target
+
+[Service]
+Type=forking
+User=$username
+LimitNOFILE=infinity
+ExecStart=/usr/bin/qbittorrent-nox -d
+ExecStop=/usr/bin/killall -w -s 9 /usr/bin/qbittorrent-nox
+Restart=on-failure
+TimeoutStopSec=20
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+	systemd-detect-virt >/dev/null
+	if [ $? -eq 0 ]; then
+		warn "Virtualization is detected, using virtualized host qBittorrent tuning"
+		aio=8
+		low_buffer=3072
+		buffer=15360
+		buffer_factor=200
+	else
+		disk_name=$(lsblk -ndo NAME,TYPE | awk '$2 == "disk" {print $1; exit}')
+		if [[ -n "$disk_name" ]] && [[ "$(cat /sys/block/"$disk_name"/queue/rotational)" == 0 ]]; then
+			aio=12
+			low_buffer=5120
+			buffer=20480
+			buffer_factor=250
+		else
+			aio=4
+			low_buffer=3072
+			buffer=10240
+			buffer_factor=150
+		fi
+	fi
+
+	wget "https://raw.githubusercontent.com/jerry048/Seedbox-Components/main/Torrent%20Clients/qBittorrent/$component_arch/qb_password_gen" -O "$HOME/qb_password_gen" && chmod +x "$HOME/qb_password_gen"
+	if [ $? -ne 0 ]; then
+		warn "Failed to download qb_password_gen"
+		rm -f /usr/bin/qbittorrent-nox /etc/systemd/system/qbittorrent-nox@.service
+		return 1
+	fi
+	PBKDF2password=$("$HOME/qb_password_gen" "$password")
+	rm -f "$HOME/qb_password_gen"
+
+	cat << EOF >"/home/$username/.config/qBittorrent/qBittorrent.conf"
+[Application]
+MemoryWorkingSetLimit=$qb_cache
+
+[BitTorrent]
+Session\\AsyncIOThreadsCount=$aio
+Session\\DefaultSavePath=/home/$username/qbittorrent/Downloads/
+Session\\DiskCacheSize=$qb_cache
+Session\\Port=$qb_incoming_port
+Session\\QueueingSystemEnabled=false
+Session\\SendBufferLowWatermark=$low_buffer
+Session\\SendBufferWatermark=$buffer
+Session\\SendBufferWatermarkFactor=$buffer_factor
+
+[LegalNotice]
+Accepted=true
+
+[Network]
+Cookies=@Invalid()
+
+[Preferences]
+WebUI\\Password_PBKDF2="@ByteArray($PBKDF2password)"
+WebUI\\Port=$qb_port
+WebUI\\Username=$username
+EOF
+	chown "$username:$username" "/home/$username/.config/qBittorrent/qBittorrent.conf"
+
+	systemctl daemon-reload
+	systemctl enable "qbittorrent-nox@$username"
+	systemctl start "qbittorrent-nox@$username"
+}
+
+is_bbr_fq_enabled_() {
+	local cc qdisc
+	cc=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)
+	qdisc=$(sysctl -n net.core.default_qdisc 2>/dev/null)
+	[[ "$cc" == "bbr" && "$qdisc" == "fq" ]]
+}
+
+install_autoremove-torrents_() {
+	if [[ -z "$username" ]] || [[ -z "$password" ]]; then
+		fail "Username or password not set"
+		return 1
+	fi
+	if [[ -z "$qb_port" ]]; then
+		warn "qBittorrent port not set, using 8080"
+		qb_port=8080
+	fi
+	if [ -f "/home/$username/.config.yml" ]; then
+		fail "Autoremove-torrents already installed"
+		return 1
+	fi
+
+	if ! command -v pipx >/dev/null 2>&1; then
+		apt-get install pipx -y
+		if [ $? -ne 0 ]; then
+			fail "Pipx Installation Failed"
+			return 1
+		fi
+	fi
+
+	su "$username" -s /bin/sh -c "python3 -m pipx install autoremove-torrents"
+	if [ $? -ne 0 ]; then
+		fail "Autoremove-torrents installation failed"
+		return 1
+	fi
+	su "$username" -s /bin/sh -c "python3 -m pipx ensurepath" >/dev/null 2>&1
+
+	if test -f /usr/bin/qbittorrent-nox; then
+		touch "/home/$username/.config.yml" && chown "$username:$username" "/home/$username/.config.yml"
+		cat << EOF >>"/home/$username/.config.yml"
+General-qb:
+  client: qbittorrent
+  host: http://127.0.0.1:$qb_port
+  username: $username
+  password: $password
+  strategies:
+    General:
+      seeding_time: 3153600000
+  delete_data: true
+EOF
+	fi
+
+	mkdir -p "/home/$username/.autoremove-torrents/log" && chown -R "$username:$username" "/home/$username/.autoremove-torrents"
+	touch "/home/$username/.autoremove-torrents/autoremove-torrents.sh" && chown "$username:$username" "/home/$username/.autoremove-torrents/autoremove-torrents.sh"
+	cat << EOF >"/home/$username/.autoremove-torrents/autoremove-torrents.sh"
+#!/bin/bash
+while true; do
+	/home/$username/.local/bin/autoremove-torrents --conf=/home/$username/.config.yml --log=/home/$username/.autoremove-torrents/log
+	sleep 5s
+done
+EOF
+	chmod +x "/home/$username/.autoremove-torrents/autoremove-torrents.sh"
+
+	touch /etc/systemd/system/autoremove-torrents@.service
+	cat << EOF >/etc/systemd/system/autoremove-torrents@.service
+[Unit]
+Description=autoremove-torrents service
+After=syslog.target network-online.target
+
+[Service]
+Type=simple
+User=$username
+Group=$username
+ExecStart=/home/$username/.autoremove-torrents/autoremove-torrents.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+	systemctl enable "autoremove-torrents@$username"
+	systemctl start "autoremove-torrents@$username"
+	return 0
 }
 
 ## Installation environment Check
@@ -72,7 +308,7 @@ if [[ ! "$OS" =~ "Debian" ]] && [[ ! "$OS" =~ "Ubuntu" ]]; then	#Only Debian and
 fi
 
 if [[ "$OS" =~ "Debian" ]]; then	#Debian 10+ are supported
-	if [[ ! "$VER" =~ "10" ]] && [[ ! "$VER" =~ "11" ]] && [[ ! "$VER" =~ "12" ]]; then
+	if [[ ! "$VER" =~ "10" ]] && [[ ! "$VER" =~ "11" ]] && [[ ! "$VER" =~ "12" ]] && [[ ! "$VER" =~ "13" ]]; then
 		fail "$OS $VER is not supported"
 		info "Only Debian 10+ are supported"
 		exit 1
@@ -80,7 +316,7 @@ if [[ "$OS" =~ "Debian" ]]; then	#Debian 10+ are supported
 fi
 
 if [[ "$OS" =~ "Ubuntu" ]]; then #Ubuntu 20.04+ are supported
-	if [[ ! "$VER" =~ "20" ]] && [[ ! "$VER" =~ "22" ]] && [[ ! "$VER" =~ "23" ]]; then
+	if [[ ! "$VER" =~ "20" ]] && [[ ! "$VER" =~ "22" ]] && [[ ! "$VER" =~ "24" ]] && [[ ! "$VER" =~ "25" ]]; then
 		fail "$OS $VER is not supported"
 		info "Only Ubuntu 20.04+ is supported"
 		exit 1
@@ -199,9 +435,10 @@ while getopts "u:p:c:q:l:rbvx3oh" opt; do
 		;;
 	h ) # process option help
 		info "Help:"
-		info "Usage: ./Install.sh -u <username> -p <password> -c <Cache Size(unit:MiB)> -q <qBittorrent version> -l <libtorrent version> -b -v -r -3 -x -p"
-		info "Example: ./Install.sh -u jerry048 -p 1LDw39VOgors -c 3072 -q 4.3.9 -l v1.2.19 -b -v -r -3"
+		info "Usage: ./Install.sh -u <username> -p <password> -c <Cache Size(unit:MiB)> -q <qBittorrent version> -l <libtorrent version> -b -v -r -3 -x -o"
+		info "Example: ./Install.sh -u jerry048 -p 1LDw39VOgors -c 4096 -q 5.2.0 -l v2.0.12 -b -v -r"
 		source <(wget -qO- https://raw.githubusercontent.com/jerry048/Seedbox-Components/main/Torrent%20Clients/qBittorrent/qBittorrent_install.sh)
+		extend_qbittorrent_support_
 		seperator
 		info "Options:"
 		need_input "1. -u : Username"
@@ -209,7 +446,7 @@ while getopts "u:p:c:q:l:rbvx3oh" opt; do
 		need_input "3. -c : Cache Size for qBittorrent (unit:MiB)"
 		echo -e "\n"
 		need_input "4. -q : qBittorrent version"
-		need_input "Available qBittorrent versions:"
+		need_input "Available libtorrent versions:"
 		tput sgr0; tput setaf 7; tput dim; history -p "${qb_ver_list[@]}"; tput sgr0
 		echo -e "\n"
 		need_input "5. -l : libtorrent version"
@@ -221,18 +458,23 @@ while getopts "u:p:c:q:l:rbvx3oh" opt; do
 		need_input "8. -v : Install vertex"
 		need_input "9. -x : Install BBRx"
 		need_input "10. -3 : Install BBRv3"
-		need_input "11. -p : Specify ports for qBittorrent, autobrr and vertex"
+		need_input "11. -o : Specify ports for qBittorrent, autobrr and vertex"
 		need_input "12. -h : Display help message"
 		exit 0
 		;;
 	\? ) 
 		info "Help:"
-		info_2 "Usage: ./Install.sh -u <username> -p <password> -c <Cache Size(unit:MiB)> -q <qBittorrent version> -l <libtorrent version> -b -v -r -3 -x -p"
-		info_2 "Example ./Install.sh -u jerry048 -p 1LDw39VOgors -c 3072 -q 4.3.9 -l v1.2.19 -b -v -r -3"
+		info_2 "Usage: ./Install.sh -u <username> -p <password> -c <Cache Size(unit:MiB)> -q <qBittorrent version> -l <libtorrent version> -b -v -r -3 -x -o"
+		info_2 "Example ./Install.sh -u jerry048 -p 1LDw39VOgors -c 4096 -q 5.2.0 -l v2.0.12 -b -v -r"
 		exit 1
 		;;
 	esac
 done
+
+if [[ -n "$bbrx_install" || -n "$bbrv3_install" ]] && is_bbr_fq_enabled_; then
+	warn "bbr + fq is already enabled; skipping BBR installer to avoid replacing the current kernel/tuning."
+	unset bbrx_install bbrv3_install
+fi
 
 # System Update & Dependencies Install
 info "Start System Update & Dependencies Install"
@@ -250,6 +492,7 @@ source <(wget -qO- https://raw.githubusercontent.com/jerry048/Seedbox-Components
 if [ $? -ne 0 ]; then
 	fail_exit "Component ~qBittorrent install~ failed to load"
 fi
+extend_qbittorrent_support_
 
 if [[ ! -z "$qb_install" ]]; then
 	## Check if all the required arguments are specified
@@ -296,7 +539,7 @@ if [[ ! -z "$qb_install" ]]; then
 	#Check if qBittorrent version is specified
 	if [ -z "$qb_ver" ]; then
 		warn "qBittorrent version is not specified"
-		qb_ver_check
+		qb_ver_choose
 	fi
 	#Check if libtorrent version is specified
 	if [ -z "$lib_ver" ]; then
@@ -313,10 +556,16 @@ if [[ ! -z "$qb_install" ]]; then
 	fi
 
 	## qBittorrent & libtorrent compatibility check
-	qb_install_check
+	if ! qb_install_check_local_; then
+		fail_exit "qBittorrent and libtorrent version check failed"
+	fi
 
 	## qBittorrent install
-	install_ "install_qBittorrent_ $username $password $qb_ver $lib_ver $qb_cache $qb_port $qb_incoming_port" "Installing qBittorrent" "/tmp/qb_error" qb_install_success
+	if [[ "$qb_ver" == "qBittorrent-5.2.0" && "$lib_ver" == "libtorrent-v2.0.12" ]]; then
+		install_ "install_qBittorrent_userdocs_ $username $password $qb_ver $lib_ver $qb_cache $qb_port $qb_incoming_port" "Installing qBittorrent" "/tmp/qb_error" qb_install_success
+	else
+		install_ "install_qBittorrent_ $username $password $qb_ver $lib_ver $qb_cache $qb_port $qb_incoming_port" "Installing qBittorrent" "/tmp/qb_error" qb_install_success
+	fi
 fi
 
 # autobrr Install
@@ -360,7 +609,7 @@ install_ kernel_settings_ "Setting Kernel Settings" "/tmp/kernel_settings_error"
 if [[ ! -z "$bbrx_install" ]]; then
 	# Check if Tweaked BBR is already installed
 	if [[ ! -z "$(lsmod | grep bbrx)" ]]; then
-		warn echo "Tweaked BBR is already installed"
+		warn "Tweaked BBR is already installed"
 	else
 		install_ install_bbrx_ "Installing BBRx" "/tmp/bbrx_error" bbrx_install_success
 	fi
