@@ -35,9 +35,9 @@ BLA::stop_loading_animation
 }
 
 extend_qbittorrent_support_() {
-	if [[ " ${qb_ver_list[*]} " != *" 5.2.0 "* ]]; then
-		qb_ver_list+=("5.2.0")
-		qb_name_list+=("qBittorrent-5.2.0")
+	if [[ " ${qb_ver_list[*]} " != *" 5.1.4 "* ]]; then
+		qb_ver_list+=("5.1.4")
+		qb_name_list+=("qBittorrent-5.1.4")
 	fi
 	if [[ " ${lib_ver_list[*]} " != *" v2.0.12 "* ]]; then
 		lib_ver_list+=("v2.0.12")
@@ -46,8 +46,8 @@ extend_qbittorrent_support_() {
 }
 
 qb_install_check_local_() {
-	if [[ "$qb_ver" == "qBittorrent-5.2.0" && "$lib_ver" != "libtorrent-v2.0.12" ]]; then
-		fail "qBittorrent 5.2.0 is only supported by this script with libtorrent-v2.0.12"
+	if [[ "$qb_ver" == "qBittorrent-5.1.4" && "$lib_ver" != "libtorrent-v2.0.12" ]]; then
+		fail "qBittorrent 5.1.4 is only supported by this script with libtorrent-v2.0.12"
 		return 1
 	fi
 	qb_install_check
@@ -62,7 +62,7 @@ install_qBittorrent_userdocs_() {
 	qb_port=$6
 	qb_incoming_port=$7
 
-	if [[ "$qb_ver" != "qBittorrent-5.2.0" || "$lib_ver" != "libtorrent-v2.0.12" ]]; then
+	if [[ "$qb_ver" != "qBittorrent-5.1.4" || "$lib_ver" != "libtorrent-v2.0.12" ]]; then
 		fail "Unsupported userdocs qBittorrent build: $qb_ver - $lib_ver"
 		return 1
 	fi
@@ -92,7 +92,7 @@ install_qBittorrent_userdocs_() {
 		rm /usr/bin/qbittorrent-nox
 	fi
 
-	wget "https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-5.2.0_v2.0.12/${asset_arch}-qbittorrent-nox" -O "$HOME/qbittorrent-nox" && chmod +x "$HOME/qbittorrent-nox"
+	wget "https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-5.1.4_v2.0.12/${asset_arch}-qbittorrent-nox" -O "$HOME/qbittorrent-nox" && chmod +x "$HOME/qbittorrent-nox"
 	if [ $? -ne 0 ]; then
 		warn "Failed to download qBittorrent-nox executable"
 		return 1
@@ -436,7 +436,7 @@ while getopts "u:p:c:q:l:rbvx3oh" opt; do
 	h ) # process option help
 		info "Help:"
 		info "Usage: ./Install.sh -u <username> -p <password> -c <Cache Size(unit:MiB)> -q <qBittorrent version> -l <libtorrent version> -b -v -r -3 -x -o"
-		info "Example: ./Install.sh -u jerry048 -p 1LDw39VOgors -c 4096 -q 5.2.0 -l v2.0.12 -b -v -r"
+		info "Example: ./Install.sh -u jerry048 -p 1LDw39VOgors -c 4096 -q 5.1.4 -l v2.0.12 -b -v -r"
 		source <(wget -qO- https://raw.githubusercontent.com/jerry048/Seedbox-Components/main/Torrent%20Clients/qBittorrent/qBittorrent_install.sh)
 		extend_qbittorrent_support_
 		seperator
@@ -465,7 +465,7 @@ while getopts "u:p:c:q:l:rbvx3oh" opt; do
 	\? ) 
 		info "Help:"
 		info_2 "Usage: ./Install.sh -u <username> -p <password> -c <Cache Size(unit:MiB)> -q <qBittorrent version> -l <libtorrent version> -b -v -r -3 -x -o"
-		info_2 "Example ./Install.sh -u jerry048 -p 1LDw39VOgors -c 4096 -q 5.2.0 -l v2.0.12 -b -v -r"
+		info_2 "Example ./Install.sh -u jerry048 -p 1LDw39VOgors -c 4096 -q 5.1.4 -l v2.0.12 -b -v -r"
 		exit 1
 		;;
 	esac
@@ -561,7 +561,7 @@ if [[ ! -z "$qb_install" ]]; then
 	fi
 
 	## qBittorrent install
-	if [[ "$qb_ver" == "qBittorrent-5.2.0" && "$lib_ver" == "libtorrent-v2.0.12" ]]; then
+	if [[ "$qb_ver" == "qBittorrent-5.1.4" && "$lib_ver" == "libtorrent-v2.0.12" ]]; then
 		install_ "install_qBittorrent_userdocs_ $username $password $qb_ver $lib_ver $qb_cache $qb_port $qb_incoming_port" "Installing qBittorrent" "/tmp/qb_error" qb_install_success
 	else
 		install_ "install_qBittorrent_ $username $password $qb_ver $lib_ver $qb_cache $qb_port $qb_incoming_port" "Installing qBittorrent" "/tmp/qb_error" qb_install_success

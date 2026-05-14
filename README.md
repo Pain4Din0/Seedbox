@@ -16,18 +16,18 @@
 	10.-x: Enable BBRx
 	11.-o: Customize ports
 #### Example
-`bash <(wget -qO- https://raw.githubusercontent.com/Pain4Din0/Seedbox/main/Install.sh) -u jerry048 -p 1LDw39VOgors -c 4096 -q 5.2.0 -l v2.0.12 -b -r`
+`bash <(wget -qO- https://raw.githubusercontent.com/Pain4Din0/Seedbox/main/Install.sh) -u jerry048 -p 1LDw39VOgors -c 4096 -q 5.1.4 -l v2.0.12 -b -r`
 
 ##### Explanation
 	1. username is jerry048
 	2. password is 1LDw39VOgors 
 	3. Cache size is 4 GiB
-	4. Install qBittorrent 5.2.0 - libtorrent-v2.0.12
+	4. Install qBittorrent 5.1.4 - libtorrent-v2.0.12
 	5. Install autobrr
 	6. Install autoremove-torrents
 
 ### Debian 13 / ARM64 note
-- Debian 13 (trixie) on ARM64 is supported by this wrapper. For ARM64, qBittorrent 5.2.0 with libtorrent v2.0.12 is installed from the userdocs static build release.
+- Debian 13 (trixie) on ARM64 is supported by this wrapper. For ARM64, qBittorrent 5.1.4 with libtorrent v2.0.12 is installed from the userdocs static build release.
 - If the machine already has `net.ipv4.tcp_congestion_control=bbr` and `net.core.default_qdisc=fq`, this script skips `-x` / `-3` BBR installation requests to avoid replacing an existing kernel or tuning. On a fresh machine, the upstream BBRv3 installer is still disabled, so prefer configuring BBR outside this script.
 - Older examples using `-q 4.6.3 -l v2.0.10` are no longer in the upstream component version list and may prompt for another version.
 - For a 4C / 24 GiB RAM / 2 Gbps VPS, `-c 4096` is a conservative cache setting. Increase to `6144` only if memory pressure stays low under your real torrent workload.
